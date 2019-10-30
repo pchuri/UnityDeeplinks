@@ -17,12 +17,10 @@
 extern "C" {
     // There is no public unity header, need to declare this manually:
     // http://answers.unity3d.com/questions/58322/calling-unitysendmessage-requires-which-library-on.html
-    extern void UnitySendMessage(const char *, const char *, const char *);
+    // extern void UnitySendMessage(const char *, const char *, const char *);
     
     // Forward declarations needed for some ObjC internal code:
-    void UnityDeeplinks_init(const char* gameObject, const char* deeplinkMethod);
-    void UnityDeeplinks_dispatch(NSString* message);
-    
+    void UnityDeeplinks_init(const char* gameObject, const char* deeplinkMethod);    
 }
 
 
@@ -98,8 +96,10 @@ extern "C" {
 // iOS >= 9.0
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<NSString *,id> *)options {
     NSString *sourceApplication = options[UIApplicationOpenURLOptionsSourceApplicationKey];
+    self.deeplink = url;
     self.options = options;
-    return [self application:app openURL:url sourceApplication:sourceApplication annotation:[NSDictionary dictionary]];
+    self.sourceApplication = sourceApplication;
+    return [super application:app openURL:url options:options];
 }
 
 
@@ -118,9 +118,9 @@ extern "C" {
 - (BOOL)application:(UIApplication *)application continueUserActivity:(nonnull NSUserActivity *)userActivity restorationHandler:(nonnull void (^)(NSArray * _Nullable))restorationHandler {
     // App was opened from a Universal Link
     if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb]) {
-        [self application:application openURL:userActivity.webpageURL sourceApplication:nil annotation:[NSDictionary dictionary]];
+        self.deeplink = userActivity.webpageURL;
     }
-    return YES;
+    return [super application:application continueUserActivity:userActivity restorationHandler:restorationHandler];
 }
 
 
@@ -161,7 +161,11 @@ extern "C" {
         if (ac.deeplink != nil) {
             NSURL* deeplink = ac.deeplink;
             ac.deeplink = nil;
-            [ac application:[UIApplication sharedApplication] openURL:deeplink options:ac.options];
+            
+            const char* name = (const char*) [ac.gameObjectName UTF8String];
+            const char* level = (const char*) [ac.deeplinkMethodName UTF8String];
+            const char* code = (const char*) [[deeplink absoluteString] UTF8String];
+            UnitySendMessage(name, level, code);
         }
         
     }
